@@ -167,22 +167,68 @@ class SteamClient:
         steam_id = self.steam_guard['steamid']
         return self.get_partner_inventory(steam_id, game, merge, count)
 
-    @login_required
+
     def get_partner_inventory(
-        self, partner_steam_id: str, game: GameOptions, merge: bool = True, count: int = 5000,
+        self,
+        partner_steam_id: str,
+        game: GameOptions,
+        merge: bool = True,
+        count: int | None = None,
+        language: str = "english",
     ) -> dict:
+        """
+        Retrieves the inventory of a Steam partner for a specific game.
+
+        This method queries the Steam Community inventory endpoint for the given
+        partner Steam ID and game context. It optionally merges item data with
+        their corresponding descriptions for easier consumption.
+
+        Args:
+            partner_steam_id (str):
+                The 64-bit Steam ID of the partner whose inventory should be fetched.
+            game (GameOptions):
+                The game definition containing the app ID and context ID.
+            merge (bool, optional):
+                If True, merges items with their descriptions before returning.
+                Defaults to True.
+            count (int | None, optional):
+                Maximum number of items to request. If None, the parameter is omitted
+                and Steam returns the full inventory. Defaults to None.
+            language (str, optional):
+                Language code used for item descriptions (e.g., "english", "french").
+                Defaults to "english".
+
+        Returns:
+            dict: The raw inventory response from Steam, or a merged structure
+            if `merge` is enabled.
+
+        Raises:
+            TooManyRequests:
+                Raised when Steam returns HTTP 429 (rate limit exceeded).
+            ApiException:
+                Raised when the Steam API does not return a successful response.
+        """
+
         url = f'{SteamUrl.COMMUNITY_URL}/inventory/{partner_steam_id}/{game.app_id}/{game.context_id}'
-        params = {'l': 'english', 'count': count}
+        params = {"l": language}
+        if count is not None:
+            params["count"] = str(count)
 
         full_response = self._session.get(url, params=params)
         response_dict = full_response.json()
+
         if full_response.status_code == 429:
-            raise TooManyRequests('Too many requests, try again later.')
+            raise TooManyRequests("Too many requests, try again later.")
 
-        if response_dict is None or response_dict.get('success') != 1:
-            raise ApiException('Success value should be 1.')
+        if response_dict is None or response_dict.get("success") != 1:
+            raise ApiException("Success value should be 1.")
 
-        return merge_items_with_descriptions_from_inventory(response_dict, game) if merge else response_dict
+        return (
+            merge_items_with_descriptions_from_inventory(response_dict, game)
+            if merge
+            else response_dict
+        )
+
 
     def _get_session_id(self) -> str:
         return self._session.cookies.get_dict(domain="steamcommunity.com", path="/").get('sessionid')
