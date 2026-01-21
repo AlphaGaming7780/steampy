@@ -1,23 +1,25 @@
+from dataclasses import dataclass
 from enum import IntEnum
-from typing import NamedTuple
+from typing import ClassVar
 
-
-class PredefinedOptions(NamedTuple):
+@dataclass(frozen=True)
+class GameOptions:
     app_id: str
     context_id: str
 
+    STEAM: ClassVar["GameOptions"]
+    DOTA2: ClassVar["GameOptions"]
+    CS: ClassVar["GameOptions"]
+    TF2: ClassVar["GameOptions"]
+    PUBG: ClassVar["GameOptions"]
+    RUST: ClassVar["GameOptions"]
 
-class GameOptions:
-    STEAM = PredefinedOptions('753', '6')
-    DOTA2 = PredefinedOptions('570', '2')
-    CS = PredefinedOptions('730', '2')
-    TF2 = PredefinedOptions('440', '2')
-    PUBG = PredefinedOptions('578080', '2')
-    RUST = PredefinedOptions('252490', '2')
-
-    def __init__(self, app_id: str, context_id: str) -> None:
-        self.app_id = app_id
-        self.context_id = context_id
+GameOptions.STEAM = GameOptions("753", "6")
+GameOptions.DOTA2 = GameOptions("570", "2")
+GameOptions.CS = GameOptions("730", "2")
+GameOptions.TF2 = GameOptions("440", "2")
+GameOptions.PUBG = GameOptions("578080", "2")
+GameOptions.RUST = GameOptions("252490", "2")
 
 
 class Asset:
