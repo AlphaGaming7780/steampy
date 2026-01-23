@@ -162,6 +162,59 @@ def merge_items(items: list[dict], descriptions: dict, **kwargs) -> dict:
 
     return merged_items
 
+def merge_history_into_assets(results_html: str, hovers: str, assets: dict) -> dict:
+    document = BeautifulSoup(results_html, 'html.parser')
+
+    rows = document.findAll('div', {'class': 'market_listing_row'})
+    links = get_history_id_to_assets_address_from_hovers(hovers)
+
+    for row in rows:
+        row_id = row.get('id', '')
+        clean_id = row_id.replace("history_row_", "")
+
+        if clean_id not in links:
+            continue
+
+        appid, contextid, assetid = links[clean_id]
+
+        try:
+            item = assets[appid][contextid][assetid]
+        except KeyError:
+            continue
+
+        # Extraire les données HTML
+        price_el = row.select_one('.market_listing_price')
+        dates = row.select('.market_listing_listed_date')
+        listed_date_el = dates[0]
+        sold_date_el = dates[1]
+
+        item["history_price"] = _safe_text(price_el)
+        item["history_listed_date"] = _safe_text(listed_date_el)
+        item["history_sold_date"] = _safe_text(sold_date_el)
+
+    return assets
+
+def _safe_text(el):
+    return el.text.strip() if el else None
+
+def get_history_id_to_assets_address_from_hovers(hovers: str) -> dict:
+    """
+    Extrait les liens entre history_row_x_y et (appid, contextid, assetid)
+    depuis le bloc 'hovers' fourni par Steam.
+    """
+    mapping = {}
+
+    regex = (
+        r"CreateItemHoverFromContainer\( [\w]+, "
+        r"'history_row_([\d]+_[\d]+)_(?:name|image)', "
+        r"([\d]+), '([\d]+)', '([\d]+)', [\d]+ \);"
+    )
+
+    for match in re.findall(regex, hovers):
+        history_id, appid, contextid, assetid = match
+        mapping[history_id] = [appid, contextid, assetid]
+
+    return mapping
 
 def get_market_listings_from_html(html: str) -> dict:
     document = BeautifulSoup(html, 'html.parser')

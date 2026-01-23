@@ -15,6 +15,7 @@ from steampy.utils import (
     login_required,
     merge_items_with_descriptions_from_listing,
     text_between,
+    merge_history_into_assets,
 )
 
 
@@ -57,6 +58,66 @@ class SteamMarket:
             raise TooManyRequests('You can fetch maximum 20 prices in 60s period')
 
         return response.json()
+
+    @login_required
+    def get_my_market_history(self) -> dict:
+        url = f'{SteamUrl.COMMUNITY_URL}/market/myhistory/render/'
+        params = {'start': 0, 'count': 10}
+
+        response = self._session.get(url, params=params)
+
+        if response.status_code == 429:
+            raise TooManyRequests("Too many requests, try again later.")
+
+        if response.status_code != HTTPStatus.OK:
+            raise ApiException(f'There was a problem getting the history. HTTP code: {response.status_code}')
+
+        jresp = response.json()
+
+        if not jresp.get('success'):
+            raise ApiException("Success value should be 1.")
+
+        # Première page
+        assets = jresp.get('assets')
+        hovers = jresp.get('hovers')
+        results_html = jresp.get('results_html')
+
+        # Fusionner les données d’historique dans assets
+        merge_history_into_assets(results_html, hovers, assets)
+
+        total_count = jresp.get('total_count')
+
+        # Sinon → charger les pages suivantes
+        loaded = 10
+        while loaded < total_count:
+            next_url = (
+                f'{SteamUrl.COMMUNITY_URL}/market/myhistory/render/'
+                f'?start={loaded}&count=10'
+            )
+
+            response = self._session.get(next_url)
+            if response.status_code != HTTPStatus.OK:
+                raise ApiException(f'There was a problem getting the history. HTTP code: {response.status_code}')
+
+            jresp = response.json()
+            if not jresp.get('success'):
+                break
+
+            # Fusionner les assets de la page suivante
+            merge_history_into_assets(
+                jresp.get('results_html'),
+                jresp.get('hovers'),
+                assets
+            )
+
+            loaded += jresp.get('pagesize', 10)
+
+        return {
+            'assets': assets,
+            'total_count': total_count,
+            'start': 0,
+            'count': loaded,
+        }
 
     @login_required
     def get_my_market_listings(self) -> dict:
